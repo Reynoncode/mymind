@@ -670,3 +670,250 @@ body {
   .note-view-header { flex-direction: column; }
   .note-view-actions { width: 100%; }
 }
+
+/* ============================================================
+   QUILL EDITOR — Tam genişləndirilmiş toolbar
+   ============================================================ */
+#editor-container {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0 24px 16px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+#quill-toolbar {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb !important;
+  border-radius: 0 !important;
+  padding: 8px 10px !important;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+#quill-toolbar .ql-formats {
+  margin-right: 8px !important;
+}
+
+#quill-editor {
+  min-height: 320px;
+  max-height: 480px;
+  overflow-y: auto;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  padding: 16px 20px !important;
+}
+
+#quill-editor .ql-editor {
+  padding: 0;
+}
+
+/* Quill content görünüşü — note view */
+.note-body {
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  line-height: 1.8;
+  color: #1a1a1a;
+  padding: 0;
+}
+.note-body h1 { font-size: 24px; font-weight: 700; margin: 24px 0 12px; }
+.note-body h2 { font-size: 20px; font-weight: 600; margin: 20px 0 10px; }
+.note-body h3 { font-size: 17px; font-weight: 600; margin: 16px 0 8px; }
+.note-body p  { margin: 0 0 10px; }
+.note-body ul, .note-body ol { padding-left: 24px; margin: 8px 0 12px; }
+.note-body li { margin-bottom: 4px; }
+.note-body blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 16px;
+  margin: 12px 0;
+  color: #6b7280;
+  font-style: italic;
+}
+.note-body pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 14px 16px;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+.note-body a { color: #2563eb; text-decoration: underline; }
+.note-body img { max-width: 100%; border-radius: 8px; margin: 8px 0; }
+
+/* ============================================================
+   FILE UPLOAD AREA — yenilənmiş
+   ============================================================ */
+#file-upload-area {
+  margin: 0 24px 12px;
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fafafa;
+  position: relative;
+}
+#file-upload-area input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+#file-upload-area:hover {
+  border-color: #9ca3af;
+  background: #f3f4f6;
+}
+#file-upload-area.drag-over {
+  border-color: #111;
+  background: #f0f0f0;
+}
+#file-upload-area i {
+  font-size: 28px;
+  color: #9ca3af;
+  margin-bottom: 8px;
+  display: block;
+}
+#file-upload-area p {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #374151;
+}
+#file-upload-area span {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* ============================================================
+   STAGED FILES — əlavə ediləcək fayllar
+   ============================================================ */
+#staged-files {
+  margin: 0 24px 12px;
+}
+.staged-files-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.staged-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.staged-file-icon { font-size: 18px; flex-shrink: 0; }
+.staged-file-info { flex: 1; min-width: 0; }
+.staged-file-name {
+  display: block;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #111;
+}
+.staged-file-size {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+.staged-file button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 2px;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.staged-file button:hover { color: #ef4444; }
+
+/* ============================================================
+   FILE CHIPS — note view-də fayllar
+   ============================================================ */
+.note-files { margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+.note-files-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+.file-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.file-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  max-width: 280px;
+  min-width: 180px;
+}
+.file-chip:hover { background: #f3f4f6; border-color: #d1d5db; }
+.file-chip-icon { font-size: 22px; flex-shrink: 0; }
+.file-chip-info { flex: 1; min-width: 0; }
+.file-chip-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-chip-size {
+  display: block;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+.file-chip-dl {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.file-chip-dl:hover { color: #111; }
+
+/* download button in file modal */
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 10px 20px;
+  background: #111;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity 0.15s;
+}
+.download-btn:hover { opacity: 0.8; }
