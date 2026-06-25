@@ -160,6 +160,12 @@ window.addEventListener('DOMContentLoaded', () => {
 // QUILL — Tam Word-vari editor
 // ============================================================
 function initQuill() {
+  if (quillEditor) return; // artıq yaradılıbsa yenidən yaratma
+  if (typeof Quill === 'undefined') {
+    // Quill hələ yüklənməyib, 100ms sonra yenidən cəhd et
+    setTimeout(initQuill, 100);
+    return;
+  }
   quillEditor = new Quill('#quill-editor', {
     theme: 'snow',
     modules: {
@@ -341,7 +347,12 @@ function showNote(noteId) {
 // EDITOR
 // ============================================================
 function openEditor(noteId) {
-  editingNoteId = noteId;
+  // Quill hələ hazır deyilsə, gözlə
+  if (!quillEditor) {
+    initQuill();
+    setTimeout(() => openEditor(noteId), 150);
+    return;
+  }
   stagedFiles = [];
   const d = DB.get();
 
