@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<title>Bilik Xəritəsi</title>
+<style>
+/* ============================================================
+   OBSIDIAN GRAPH — tam CSS
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #0f0f13;
+  --bg2:        #16161d;
+  --bg3:        #1e1e28;
+  --border:     #2a2a38;
+  --text:       #e0e0ef;
+  --text2:      #9090a8;
+  --text3:      #55556a;
+  --accent:     #7c6aff;
+  --accent2:    #a78bfa;
+  --green:      #34d399;
+  --yellow:     #fbbf24;
+  --red:        #f87171;
+  --node-def:   #6366f1;
+  --node-sel:   #fbbf24;
+  --node-link:  #34d399;
+  --node-hover: #a78bfa;
+  --edge:       rgba(99,102,241,0.35);
+  --edge-sel:   rgba(52,211,153,0.7);
+  --panel-w:    320px;
+  --ctrl-h:     52px;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── CANVAS ─────────────────────────────────────────────── */
+#graph-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+#graph-canvas.grabbing { cursor: grabbing; }
+#graph-canvas.crosshair { cursor: crosshair; }
+
+/* ── TOP CONTROLS ────────────────────────────────────────── */
+#top-bar {
+  position: fixed;
+  top: 16px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 8px 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  backdrop-filter: blur(12px);
+}
+
+#top-bar .logo {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent2);
+  letter-spacing: -0.3px;
+  margin-right: 4px;
+}
+
+#search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+#graph-search {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px 6px 30px;
+  color: var(--text);
+  font-size: 13px;
+  width: 200px;
+  outline: none;
+  transition: border-color 0.2s, width 0.3s;
+}
+#graph-search:focus { border-color: var(--accent); width: 260px; }
+#graph-search::placeholder { color: var(--text3); }
+#search-box .s-icon {
+  position: absolute; left: 9px;
+  color: var(--text3); font-size: 14px; pointer-events: none;
+}
+#search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px); left: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: 280px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 200;
+  display: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+#search-dropdown.show { display: block; }
+.sd-item {
+  padding: 9px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.sd-item:last-child { border-bottom: none; }
+.sd-item:hover { background: var(--bg3); }
+.sd-item-title { font-weight: 500; color: var(--text); }
+.sd-item-cat { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+.tb-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+.tb-btn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: all 0.15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.tb-btn:hover { background: var(--bg3); color: var(--text); }
+.tb-btn.active { background: var(--accent); color: #fff; }
+.tb-btn span { font-size: 12px; font-weight: 500; }
+
+/* ── SIDE PANEL ──────────────────────────────────────────── */
+#side-panel {
+  position: fixed;
+  top: 0; right: 0;
+  width: var(--panel-w);
+  height: 100%;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.4);
+}
+#side-panel.open { transform: translateX(0); }
+
+#panel-header {
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+#panel-node-color {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+#panel-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+  flex: 1;
+}
+#panel-close {
+  background: none; border: none;
+  color: var(--text3); cursor: pointer;
+  font-size: 18px; padding: 2px;
+  border-radius: 6px; transition: color 0.15s;
+  flex-shrink: 0;
+}
+#panel-close:hover { color: var(--text); }
+
+#panel-meta {
+  padding: 10px 18px;
+  font-size: 12px;
+  color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  line-height: 1.6;
+}
+
+#panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.ptab {
+  flex: 1; padding: 10px;
+  background: none; border: none;
+  color: var(--text3); cursor: pointer;
+  font-size: 12px; font-weight: 600;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.ptab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+
+#panel-body { flex: 1; overflow-y: auto; padding: 14px 18px; }
+
+.panel-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 14px 0 8px;
+}
+.panel-section-title:first-child { margin-top: 0; }
+
+.link-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg3);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  font-size: 13px;
+}
+.link-item:hover { border-color: var(--accent); background: #1e1e35; }
+.link-item-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.link-item-name { flex: 1; color: var(--text); font-weight: 500; }
+.link-item-cat { font-size: 11px; color: var(--text3); }
+
+.no-links {
+  font-size: 13px;
+  color: var(--text3);
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* Preview tab */
+#panel-preview {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text2);
+}
+#panel-preview h1,h2,h3 { color: var(--text); margin-bottom: 6px; }
+#panel-preview p { margin-bottom: 8px; }
+
+/* Panel actions */
+#panel-actions {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+}
+.pa-btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.pa-btn:hover { border-color: var(--accent); color: var(--accent2); }
+.pa-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+/* ── BOTTOM CONTROLS ─────────────────────────────────────── */
+#bottom-bar {
+  position: fixed;
+  bottom: 20px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.zoom-btn {
+  background: none; border: none;
+  color: var(--text2); cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 16px;
+  transition: all 0.15s;
+}
+.zoom-btn:hover { background: var(--bg3); color: var(--text); }
+
+#zoom-label {
+  font-size: 12px;
+  color: var(--text3);
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── FILTER PANEL ────────────────────────────────────────── */
+#filter-panel {
+  position: fixed;
+  top: 76px; left: 16px;
+  z-index: 90;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  min-width: 200px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  display: none;
+}
+#filter-panel.open { display: block; }
+#filter-panel h4 {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 10px;
+}
+.filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text2);
+  transition: color 0.15s;
+}
+.filter-item:hover { color: var(--text); }
+.filter-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+.filter-checkbox {
+  width: 14px; height: 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 3px;
+  margin-left: auto;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.filter-item.active .filter-checkbox {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.filter-item.active .filter-checkbox::after {
+  content: '✓';
+  font-size: 9px;
+  color: #fff;
+}
+
+/* ── TOOLTIP ─────────────────────────────────────────────── */
+#node-tooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 300;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text);
+  max-width: 200px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  display: none;
+  line-height: 1.5;
+}
+#node-tooltip .tt-title { font-weight: 600; margin-bottom: 2px; }
+#node-tooltip .tt-cat { color: var(--text3); font-size: 11px; }
+#node-tooltip .tt-links { color: var(--accent2); font-size: 11px; margin-top: 3px; }
+
+/* ── MINIMAP ─────────────────────────────────────────────── */
+#minimap {
+  position: fixed;
+  bottom: 80px; right: 16px;
+  width: 160px; height: 110px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 90;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+#minimap:hover { opacity: 1; }
+#minimap-canvas { width: 100%; height: 100%; }
+
+/* ── STATS BAR ───────────────────────────────────────────── */
+#stats-bar {
+  position: fixed;
+  bottom: 20px; left: 20px;
+  z-index: 90;
+  font-size: 11px;
+  color: var(--text3);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+
+/* ── CONTEXT MENU ────────────────────────────────────────── */
+#ctx-menu {
+  position: fixed;
+  z-index: 400;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  min-width: 180px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  display: none;
+}
+#ctx-menu.show { display: block; }
+.ctx-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text2);
+  transition: all 0.1s;
+}
+.ctx-item:hover { background: var(--bg3); color: var(--text); }
+.ctx-item.danger { color: var(--red); }
+.ctx-item.danger:hover { background: rgba(248,113,113,0.1); }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ── LINK LINE MODAL ─────────────────────────────────────── */
+#link-mode-hint {
+  position: fixed;
+  top: 76px; left: 50%; transform: translateX(-50%);
+  z-index: 200;
+  background: rgba(124,106,255,0.15);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 13px;
+  color: var(--accent2);
+  display: none;
+  backdrop-filter: blur(8px);
+}
+#link-mode-hint.show { display: block; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- CANVAS -->
+<canvas id="graph-canvas"></canvas>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+  <div class="logo">⚡ Bilik Xəritəsi</div>
+  <div class="tb-sep"></div>
+  <div id="search-box">
+    <i class="s-icon">🔍</i>
+    <input id="graph-search" placeholder="Qeyd axtar..." autocomplete="off">
+    <div id="search-dropdown"></div>
+  </div>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-layout" onclick="OG.autoLayout()" title="Avtomatik düzüm">
+    ⊞ <span>Düzüm</span>
+  </button>
+  <button class="tb-btn" id="btn-filter" onclick="OG.toggleFilter()" title="Filtrlər">
+    ☰ <span>Filter</span>
+  </button>
+  <button class="tb-btn" id="btn-link-mode" onclick="OG.toggleLinkMode()" title="Əlaqə qur">
+    🔗 <span>Əlaqə</span>
+  </button>
+  <button class="tb-btn" id="btn-reset" onclick="OG.resetView()" title="Yenilə">
+    ↺
+  </button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="OG.closeGraph()" title="Bağla">✕</button>
+</div>
+
+<!-- LINK MODE HINT -->
+<div id="link-mode-hint">🔗 Əlaqə modu — iki qeydə ardıcıl klik edin. Çıxmaq üçün <b>Esc</b></div>
+
+<!-- FILTER PANEL -->
+<div id="filter-panel">
+  <h4>Kateqoriyalar</h4>
+  <div id="filter-cats"></div>
+</div>
+
+<!-- SIDE PANEL -->
+<div id="side-panel">
+  <div id="panel-header">
+    <div id="panel-node-color"></div>
+    <div id="panel-title">—</div>
+    <button id="panel-close" onclick="OG.closePanel()">✕</button>
+  </div>
+  <div id="panel-meta"></div>
+  <div id="panel-tabs">
+    <button class="ptab active" onclick="OG.switchTab('links')">Əlaqələr</button>
+    <button class="ptab" onclick="OG.switchTab('preview')">Önbaxış</button>
+  </div>
+  <div id="panel-body"></div>
+  <div id="panel-actions">
+    <button class="pa-btn" onclick="OG.goToNote()">📖 Aç</button>
+    <button class="pa-btn" onclick="OG.editNote()">✏️ Redaktə</button>
+    <button class="pa-btn danger" onclick="OG.unlinkAll()">🔗✕ Bağları sil</button>
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div id="bottom-bar">
+  <button class="zoom-btn" onclick="OG.zoom(-0.2)">−</button>
+  <span id="zoom-label">100%</span>
+  <button class="zoom-btn" onclick="OG.zoom(0.2)">+</button>
+  <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+  <button class="zoom-btn" onclick="OG.zoom(0)" title="Fit">⤢</button>
+</div>
+
+<!-- MINIMAP -->
+<div id="minimap">
+  <canvas id="minimap-canvas" width="160" height="110"></canvas>
+</div>
+
+<!-- STATS BAR -->
+<div id="stats-bar" id="stats-bar">...</div>
+
+<!-- TOOLTIP -->
+<div id="node-tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div class="tt-cat" id="tt-cat"></div>
+  <div class="tt-links" id="tt-links"></div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx-menu">
+  <div class="ctx-item" onclick="OG.ctxOpen()">📖 Qeydi aç</div>
+  <div class="ctx-item" onclick="OG.ctxEdit()">✏️ Redaktə et</div>
+  <div class="ctx-item" onclick="OG.ctxStartLink()">🔗 Əlaqə qur</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="OG.ctxFocus()">🎯 Fokus</div>
+  <div class="ctx-item" onclick="OG.ctxHide()">👁 Gizlət</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" onclick="OG.ctxUnlink()">🔗✕ Bağlarını sil</div>
+</div>
+
+<script>
+// ============================================================
+// OBSIDIAN GRAPH ENGINE
+// ============================================================
+const OG = (() => {
+
+  // ── State ────────────────────────────────────────────────
+  let nodes = [];        // { id, label, catId, catName, color, x, y, vx, vy, radius, hidden }
+  let edges = [];        // { a, b }
+  let selectedId = null;
+  let hoveredId  = null;
+  let ctxNodeId  = null;
+  let linkModeActive = false;
+  let linkFirstNode  = null;
+  let hiddenNodes    = new Set();
+  let filterCats     = new Map(); // catId → visible
+  let currentTab     = 'links';
+
+  // Camera
+  let cam = { x: 0, y: 0, z: 1 };
+  let isPanning = false;
+  let panStart  = { x: 0, y: 0 };
+  let dragNode  = null;
+  let dragStart = { x: 0, y: 0 };
+  let lastMouse = { x: 0, y: 0 };
+
+  // Physics
+  let animId = null;
+  let physicsActive = true;
+  let physTick = 0;
+
+  // Canvas
+  const canvas = document.getElementById('graph-canvas');
+  const ctx    = canvas.getContext('2d');
+  const mm     = document.getElementById('minimap-canvas');
+  const mmCtx  = mm.getContext('2d');
+
+  // Palette for categories
+  const PALETTE = [
+    '#6366f1','#8b5cf6','#ec4899','#f59e0b',
+    '#10b981','#3b82f6','#ef4444','#14b8a6',
+    '#f97316','#84cc16','#06b6d4','#a855f7'
+  ];
+
+  // ── Init ─────────────────────────────────────────────────
+  function init() {
+    resize();
+    window.addEventListener('resize', resize);
+    bindEvents();
+    loadData();
+    loop();
+
+    // Search
+    const si = document.getElementById('graph-search');
+    si.addEventListener('input', onSearch);
+    si.addEventListener('blur', () => setTimeout(() => {
+      document.getElementById('search-dropdown').classList.remove('show');
+    }, 150));
+    si.addEventListener('keydown', e => { if(e.key==='Escape') si.blur(); });
+
+    // Keyboard
+    window.addEventListener('keydown', onKey);
+  }
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  // ── Data loading ──────────────────────────────────────────
+  function loadData() {
+    let data = null;
+    try {
+      data = JSON.parse(localStorage.getItem('bilikbazasi') || 'null');
+    } catch(e) {}
+
+    if (!data || !data.notes) {
+      // Demo data
+      data = generateDemoData();
+    }
+
+    // Build category color map
+    const catColors = new Map();
+    let ci = 0;
+    (data.categories || []).forEach(c => {
+      catColors.set(c.id, PALETTE[ci++ % PALETTE.length]);
+    });
+
+    // Build nodes
+    const W = canvas.width, H = canvas.height;
+    nodes = (data.notes || []).map((n, i) => {
+      const catName = (data.categories||[]).find(c=>c.id===n.catId)?.name || 'Digər';
+      const color = catColors.get(n.catId) || PALETTE[0];
+      const angle = (2*Math.PI*i/Math.max(data.notes.length,1));
+      const r = Math.min(W,H) * 0.3;
+      const linkCount = (data.links||[]).filter(l=>l.a===n.id||l.b===n.id).length;
+      return {
+        id: n.id, label: n.title,
+        content: n.content || '',
+        catId: n.catId, catName,
+        color, hidden: false,
+        x: W/2 + r * Math.cos(angle) + (Math.random()-0.5)*80,
+        y: H/2 + r * Math.sin(angle) + (Math.random()-0.5)*80,
+        vx: 0, vy: 0,
+        radius: 6 + Math.min(linkCount * 2, 14),
+        linkCount,
+        updatedAt: n.updatedAt
+      };
+    });
+
+    // Build edges
+    edges = (data.links || []).filter(l =>
+      nodes.find(n=>n.id===l.a) && nodes.find(n=>n.id===l.b)
+    );
+
+    // Filter cats
+    const seen = new Set();
+    nodes.forEach(n => {
+      if (!seen.has(n.catId)) {
+        seen.add(n.catId);
+        filterCats.set(n.catId, { name: n.catName, color: n.color, visible: true });
+      }
+    });
+
+    buildFilterPanel();
+    updateStats();
+    fitView();
+  }
+
+  function generateDemoData() {
+    return {
+      categories: [
+        {id:1,name:'Texnologiya',icon:'💻'},{id:2,name:'Elm',icon:'🔬'},{id:3,name:'İncəsənət',icon:'🎨'}
+      ],
+      notes: [
+        {id:1,title:'JavaScript',catId:1,content:'<p>Veb proqramlaşdırma dili</p>',updatedAt:new Date().toISOString()},
+        {id:2,title:'Python',catId:1,content:'<p>Çoxməqsədli proqramlaşdırma dili</p>',updatedAt:new Date().toISOString()},
+        {id:3,title:'Firebase',catId:1,content:'<p>Google backend platforması</p>',updatedAt:new Date().toISOString()},
+        {id:4,title:'Kvant fizikası',catId:2,content:'<p>Atom altı hissəciklər</p>',updatedAt:new Date().toISOString()},
+        {id:5,title:'Neyron şəbəkələr',catId:2,content:'<p>Süni intellekt əsası</p>',updatedAt:new Date().toISOString()},
+        {id:6,title:'Rəssamlıq',catId:3,content:'<p>Vizual sənət forması</p>',updatedAt:new Date().toISOString()},
+        {id:7,title:'Musiqi nəzəriyyəsi',catId:3,content:'<p>Notlar, ritm, harmoniya</p>',updatedAt:new Date().toISOString()},
+        {id:8,title:'Verilənlər bazası',catId:1,content:'<p>Məlumat saxlama sistemləri</p>',updatedAt:new Date().toISOString()},
+      ],
+      links: [{a:1,b:3},{a:1,b:2},{a:2,b:5},{a:3,b:8},{a:4,b:5},{a:6,b:7}]
+    };
+  }
+
+  // ── Physics / Force-directed ──────────────────────────────
+  function applyPhysics() {
+    if (!physicsActive) return;
+    physTick++;
+    const cooling = Math.max(0.3, 1 - physTick / 300);
+    const visNodes = nodes.filter(n => !n.hidden);
+
+    // Repulsion (Barnes-Hut approximation — simple version)
+    for (let i = 0; i < visNodes.length; i++) {
+      for (let j = i+1; j < visNodes.length; j++) {
+        const a = visNodes[i], b = visNodes[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.max(Math.sqrt(dx*dx+dy*dy), 1);
+        const rep = 2800 / (dist * dist);
+        const fx = dx/dist * rep, fy = dy/dist * rep;
+        a.vx -= fx; a.vy -= fy;
+        b.vx += fx; b.vy += fy;
+      }
+    }
+
+    // Attraction (spring)
+    edges.forEach(e => {
+      const a = visNodes.find(n=>n.id===e.a);
+      const b = visNodes.find(n=>n.id===e.b);
+      if (!a||!b) return;
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const dist = Math.max(Math.sqrt(dx*dx+dy*dy), 1);
+      const target = 120;
+      const force = (dist - target) * 0.035;
+      const fx = dx/dist*force, fy = dy/dist*force;
+      a.vx += fx; a.vy += fy;
+      b.vx -= fx; b.vy -= fy;
+    });
+
+    // Center gravity
+    const cx = canvas.width/2, cy = canvas.height/2;
+    visNodes.forEach(n => {
+      n.vx += (cx - n.x) * 0.004;
+      n.vy += (cy - n.y) * 0.004;
+    });
+
+    // Integrate + damping
+    visNodes.forEach(n => {
+      if (dragNode && dragNode.id === n.id) return;
+      n.vx *= 0.82 * cooling;
+      n.vy *= 0.82 * cooling;
+      n.x += n.vx;
+      n.y += n.vy;
+    });
+  }
+
+  // ── Render ───────────────────────────────────────────────
+  function render() {
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Background gradient
+    const grad = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.7);
+    grad.addColorStop(0, '#13131a');
+    grad.addColorStop(1, '#0a0a10');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.translate(cam.x, cam.y);
+    ctx.scale(cam.z, cam.z);
+
+    const visNodes = nodes.filter(n => !n.hidden);
+
+    // Draw edges
+    edges.forEach(e => {
+      const a = visNodes.find(n=>n.id===e.a);
+      const b = visNodes.find(n=>n.id===e.b);
+      if (!a||!b) return;
+      const isLinkedToSelected = selectedId && (e.a===selectedId||e.b===selectedId);
+      const isLinkedToHovered  = hoveredId  && (e.a===hoveredId ||e.b===hoveredId);
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+
+      // Curved edges
+      const mx = (a.x+b.x)/2 + (b.y-a.y)*0.1;
+      const my = (a.y+b.y)/2 - (b.x-a.x)*0.1;
+      ctx.quadraticCurveTo(mx, my, b.x, b.y);
+
+      if (isLinkedToSelected) {
+        ctx.strokeStyle = 'rgba(52,211,153,0.7)';
+        ctx.lineWidth = 2 / cam.z;
+      } else if (isLinkedToHovered) {
+        ctx.strokeStyle = 'rgba(167,139,250,0.6)';
+        ctx.lineWidth = 1.5 / cam.z;
+      } else {
+        ctx.strokeStyle = 'rgba(99,102,241,0.25)';
+        ctx.lineWidth = 1 / cam.z;
+      }
+      ctx.stroke();
+
+      // Arrow on selected edges
+      if (isLinkedToSelected || isLinkedToHovered) {
+        const t = 0.6;
+        const ax = (1-t)*(1-t)*a.x + 2*(1-t)*t*mx + t*t*b.x;
+        const ay = (1-t)*(1-t)*a.y + 2*(1-t)*t*my + t*t*b.y;
+        const dx = 2*(1-t)*(mx-a.x)+2*t*(b.x-mx);
+        const dy = 2*(1-t)*(my-a.y)+2*t*(b.y-my);
+        const ang = Math.atan2(dy,dx);
+        const as = 6 / cam.z;
+        ctx.beginPath();
+        ctx.moveTo(ax + Math.cos(ang)*as, ay + Math.sin(ang)*as);
+        ctx.lineTo(ax + Math.cos(ang+2.4)*as*0.6, ay + Math.sin(ang+2.4)*as*0.6);
+        ctx.lineTo(ax + Math.cos(ang-2.4)*as*0.6, ay + Math.sin(ang-2.4)*as*0.6);
+        ctx.closePath();
+        ctx.fillStyle = isLinkedToSelected ? 'rgba(52,211,153,0.8)' : 'rgba(167,139,250,0.7)';
+        ctx.fill();
+      }
+    });
+
+    // Draw nodes
+    visNodes.forEach(n => {
+      const isSelected = n.id === selectedId;
+      const isHovered  = n.id === hoveredId;
+      const isLinked   = selectedId && edges.some(e=>(e.a===selectedId&&e.b===n.id)||(e.b===selectedId&&e.a===n.id));
+      const isLinkFirst = linkModeActive && n.id === linkFirstNode;
+
+      const r = n.radius;
+      const glowR = r * 2.8;
+
+      // Glow
+      if (isSelected || isHovered || isLinked || isLinkFirst) {
+        const gc = isSelected ? n.color : isLinked ? '#34d399' : isLinkFirst ? '#fbbf24' : '#a78bfa';
+        const grd = ctx.createRadialGradient(n.x,n.y,r*0.5,n.x,n.y,glowR);
+        grd.addColorStop(0, gc + '55');
+        grd.addColorStop(1, gc + '00');
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, glowR, 0, Math.PI*2);
+        ctx.fillStyle = grd;
+        ctx.fill();
+      }
+
+      // Pulse ring for selected
+      if (isSelected) {
+        const pulseR = r + 4 + Math.sin(Date.now()/400)*3;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, pulseR, 0, Math.PI*2);
+        ctx.strokeStyle = n.color + '88';
+        ctx.lineWidth = 1.5 / cam.z;
+        ctx.stroke();
+      }
+
+      // Node fill
+      const fillColor = isSelected ? n.color :
+                        isLinked   ? '#34d399' :
+                        isLinkFirst? '#fbbf24' :
+                        isHovered  ? '#a78bfa' :
+                        n.color + 'cc';
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI*2);
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+      ctx.strokeStyle = '#0f0f1388';
+      ctx.lineWidth = 1.5 / cam.z;
+      ctx.stroke();
+
+      // Label
+      const fontSize = Math.max(9, Math.min(13, 10 + (isSelected?2:0))) / cam.z;
+      ctx.font = `${isSelected?'600':'400'} ${fontSize}px Inter,sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      const label = n.label.length > 16 ? n.label.slice(0,15)+'…' : n.label;
+      const ty = n.y + r + 4/cam.z;
+
+      // Label shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillText(label, n.x+0.5/cam.z, ty+0.5/cam.z);
+
+      ctx.fillStyle = isSelected ? '#fff' : isHovered ? '#e0e0ef' : '#9090a8';
+      ctx.fillText(label, n.x, ty);
+    });
+
+    // Link mode: draw line from first node to cursor
+    if (linkModeActive && linkFirstNode) {
+      const fn = nodes.find(n=>n.id===linkFirstNode);
+      if (fn) {
+        const mx2 = (lastMouse.x - cam.x) / cam.z;
+        const my2 = (lastMouse.y - cam.y) / cam.z;
+        ctx.beginPath();
+        ctx.moveTo(fn.x, fn.y);
+        ctx.lineTo(mx2, my2);
+        ctx.strokeStyle = '#fbbf2488';
+        ctx.lineWidth = 2 / cam.z;
+        ctx.setLineDash([6/cam.z, 4/cam.z]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    ctx.restore();
+
+    renderMinimap();
+  }
+
+  function renderMinimap() {
+    const MW = mm.width, MH = mm.height;
+    mmCtx.clearRect(0, 0, MW, MH);
+    mmCtx.fillStyle = '#16161d';
+    mmCtx.fillRect(0, 0, MW, MH);
+
+    const visNodes = nodes.filter(n=>!n.hidden);
+    if (!visNodes.length) return;
+
+    // Fit all nodes into minimap
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    visNodes.forEach(n=>{
+      minX=Math.min(minX,n.x);minY=Math.min(minY,n.y);
+      maxX=Math.max(maxX,n.x);maxY=Math.max(maxY,n.y);
+    });
+    const pw = maxX-minX||1, ph = maxY-minY||1;
+    const scale = Math.min((MW-16)/pw, (MH-16)/ph) * 0.9;
+    const ox = (MW - pw*scale)/2 - minX*scale;
+    const oy = (MH - ph*scale)/2 - minY*scale;
+
+    // Edges
+    edges.forEach(e=>{
+      const a=visNodes.find(n=>n.id===e.a), b=visNodes.find(n=>n.id===e.b);
+      if(!a||!b) return;
+      mmCtx.beginPath();
+      mmCtx.moveTo(a.x*scale+ox, a.y*scale+oy);
+      mmCtx.lineTo(b.x*scale+ox, b.y*scale+oy);
+      mmCtx.strokeStyle='rgba(99,102,241,0.3)';
+      mmCtx.lineWidth=0.5; mmCtx.stroke();
+    });
+
+    // Nodes
+    visNodes.forEach(n=>{
+      mmCtx.beginPath();
+      mmCtx.arc(n.x*scale+ox, n.y*scale+oy, Math.max(2, n.radius*scale*0.4), 0, Math.PI*2);
+      mmCtx.fillStyle = n.id===selectedId ? '#fbbf24' : n.color;
+      mmCtx.fill();
+    });
+
+    // Viewport indicator
+    const vx = (-cam.x/cam.z)*scale+ox;
+    const vy = (-cam.y/cam.z)*scale+oy;
+    const vw = (canvas.width/cam.z)*scale;
+    const vh = (canvas.height/cam.z)*scale;
+    mmCtx.strokeStyle='rgba(255,255,255,0.3)';
+    mmCtx.lineWidth=1;
+    mmCtx.strokeRect(vx,vy,vw,vh);
+  }
+
+  // ── Animation loop ────────────────────────────────────────
+  function loop() {
+    applyPhysics();
+    render();
+    animId = requestAnimationFrame(loop);
+  }
+
+  // ── Events ───────────────────────────────────────────────
+  function bindEvents() {
+    canvas.addEventListener('mousedown',  onMouseDown);
+    canvas.addEventListener('mousemove',  onMouseMove);
+    canvas.addEventListener('mouseup',    onMouseUp);
+    canvas.addEventListener('wheel',      onWheel, { passive: false });
+    canvas.addEventListener('contextmenu',onContextMenu);
+    canvas.addEventListener('dblclick',   onDblClick);
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#ctx-menu')) hideCtxMenu();
+    });
+  }
+
+  function worldPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left - cam.x) / cam.z,
+      y: (e.clientY - r.top  - cam.y) / cam.z
+    };
+  }
+  function hitNode(wx, wy) {
+    return nodes.filter(n=>!n.hidden).find(n => {
+      const d = Math.hypot(n.x-wx, n.y-wy);
+      return d <= Math.max(n.radius + 4, 12);
+    });
+  }
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return;
+    hideCtxMenu();
+    const wp = worldPos(e);
+    const hit = hitNode(wp.x, wp.y);
+    if (hit) {
+      if (linkModeActive) {
+        handleLinkClick(hit.id);
+        return;
+      }
+      dragNode = hit;
+      dragStart = { x: e.clientX, y: e.clientY };
+      physicsActive = false;
+    } else {
+      isPanning = true;
+      panStart = { x: e.clientX - cam.x, y: e.clientY - cam.y };
+      canvas.classList.add('grabbing');
+    }
+  }
+
+  function onMouseMove(e) {
+    const r = canvas.getBoundingClientRect();
+    lastMouse.x = e.clientX - r.left;
+    lastMouse.y = e.clientY - r.top;
+
+    if (dragNode) {
+      const wp = worldPos(e);
+      dragNode.x = wp.x;
+      dragNode.y = wp.y;
+      dragNode.vx = 0; dragNode.vy = 0;
+      return;
+    }
+    if (isPanning) {
+      cam.x = e.clientX - panStart.x;
+      cam.y = e.clientY - panStart.y;
+      return;
+    }
+
+    const wp = worldPos(e);
+    const hit = hitNode(wp.x, wp.y);
+    if (hit) {
+      hoveredId = hit.id;
+      showTooltip(hit, e.clientX, e.clientY);
+      canvas.classList.add('crosshair');
+    } else {
+      hoveredId = null;
+      hideTooltip();
+      canvas.classList.remove('crosshair');
+    }
+  }
+
+  function onMouseUp(e) {
+    if (dragNode) {
+      const dist = Math.hypot(e.clientX-dragStart.x, e.clientY-dragStart.y);
+      if (dist < 5) {
+        selectNode(dragNode.id);
+      }
+      physicsActive = true;
+      physTick = 0;
+      dragNode = null;
+    }
+    isPanning = false;
+    canvas.classList.remove('grabbing');
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.88;
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    cam.x = mx - (mx - cam.x) * factor;
+    cam.y = my - (my - cam.y) * factor;
+    cam.z = Math.max(0.1, Math.min(4, cam.z * factor));
+    updateZoomLabel();
+  }
+
+  function onContextMenu(e) {
+    e.preventDefault();
+    const wp = worldPos(e);
+    const hit = hitNode(wp.x, wp.y);
+    if (hit) {
+      ctxNodeId = hit.id;
+      showCtxMenu(e.clientX, e.clientY);
+    }
+  }
+
+  function onDblClick(e) {
+    const wp = worldPos(e);
+    const hit = hitNode(wp.x, wp.y);
+    if (hit) goToNote(hit.id);
+  }
+
+  function onKey(e) {
+    if (e.key === 'Escape') {
+      if (linkModeActive) { toggleLinkMode(); return; }
+      if (selectedId) { deselectNode(); return; }
+    }
+    if (e.key === 'f' || e.key === 'F') fitView();
+    if ((e.key === '+' || e.key === '=') && e.ctrlKey) { e.preventDefault(); zoom(0.2); }
+    if (e.key === '-' && e.ctrlKey) { e.preventDefault(); zoom(-0.2); }
+  }
+
+  // ── Node selection ────────────────────────────────────────
+  function selectNode(id) {
+    selectedId = id;
+    const n = nodes.find(x=>x.id===id);
+    if (!n) return;
+    openPanel(n);
+    focusNode(n, false);
+  }
+
+  function deselectNode() {
+    selectedId = null;
+    closePanel();
+  }
+
+  function focusNode(n, animate=true) {
+    const tx = canvas.width/2 - n.x * cam.z;
+    const ty = canvas.height/2 - n.y * cam.z;
+    if (!animate) { cam.x=tx; cam.y=ty; return; }
+    const sx=cam.x,sy=cam.y, frames=24;
+    let f=0;
+    function step() {
+      f++;
+      const t = f/frames;
+      const ease = t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+      cam.x = sx+(tx-sx)*ease;
+      cam.y = sy+(ty-sy)*ease;
+      if(f<frames) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // ── Panel ─────────────────────────────────────────────────
+  function openPanel(n) {
+    document.getElementById('panel-title').textContent = n.label;
+    document.getElementById('panel-node-color').style.background = n.color;
+    const lc = edges.filter(e=>e.a===n.id||e.b===n.id).length;
+    document.getElementById('panel-meta').innerHTML =
+      `<b>${n.catName}</b> · ${lc} əlaqə` +
+      (n.updatedAt ? ` · ${new Date(n.updatedAt).toLocaleDateString('az-AZ')}` : '');
+    renderPanelTab();
+    document.getElementById('side-panel').classList.add('open');
+  }
+
+  function closePanel() {
+    document.getElementById('side-panel').classList.remove('open');
+    selectedId = null;
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.ptab').forEach((b,i) => {
+      b.classList.toggle('active', (i===0&&tab==='links')||(i===1&&tab==='preview'));
+    });
+    renderPanelTab();
+  }
+
+  function renderPanelTab() {
+    const body = document.getElementById('panel-body');
+    if (!selectedId) return;
+    const n = nodes.find(x=>x.id===selectedId);
+
+    if (currentTab === 'links') {
+      const linkedIds = edges
+        .filter(e=>e.a===n.id||e.b===n.id)
+        .map(e=>e.a===n.id?e.b:e.a);
+      const linked = nodes.filter(x=>linkedIds.includes(x.id));
+
+      // Backlinks: who links to this
+      const backIds = edges
+        .filter(e=>e.b===n.id)
+        .map(e=>e.a);
+      const outIds = edges.filter(e=>e.a===n.id).map(e=>e.b);
+
+      let html = '';
+      if (linked.length === 0) {
+        html = `<div class="no-links">Bu qeydin hələ əlaqəsi yoxdur.<br>🔗 Əlaqə modu ilə bağlayın.</div>`;
+      } else {
+        html += `<div class="panel-section-title">Bağlı qeydlər (${linked.length})</div>`;
+        html += linked.map(l=>`
+          <div class="link-item" onclick="OG.selectNode(${l.id})">
+            <div class="link-item-dot" style="background:${l.color}"></div>
+            <div>
+              <div class="link-item-name">${escH(l.label)}</div>
+              <div class="link-item-cat">${escH(l.catName)}</div>
+            </div>
+            <div style="color:var(--text3);font-size:11px">${l.linkCount} 🔗</div>
+          </div>`).join('');
+      }
+      body.innerHTML = html;
+    } else {
+      // Preview
+      const stripped = n.content.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+      body.innerHTML = `<div id="panel-preview">${stripped.slice(0,400)||'<span style="color:var(--text3)">Məzmun yoxdur</span>'}${stripped.length>400?'…':''}</div>`;
+    }
+  }
+
+  // ── Link mode ─────────────────────────────────────────────
+  function toggleLinkMode() {
+    linkModeActive = !linkModeActive;
+    linkFirstNode = null;
+    document.getElementById('btn-link-mode').classList.toggle('active', linkModeActive);
+    document.getElementById('link-mode-hint').classList.toggle('show', linkModeActive);
+    canvas.style.cursor = linkModeActive ? 'crosshair' : '';
+  }
+
+  function handleLinkClick(id) {
+    if (!linkFirstNode) {
+      linkFirstNode = id;
+      showToastMsg(`Birinci qeyd seçildi. İndi ikinci qeydi seçin.`);
+    } else {
+      if (linkFirstNode === id) {
+        linkFirstNode = null;
+        return;
+      }
+      // Check if already linked
+      const exists = edges.some(e=>(e.a===linkFirstNode&&e.b===id)||(e.a===id&&e.b===linkFirstNode));
+      if (exists) {
+        showToastMsg('Bu əlaqə artıq mövcuddur');
+        linkFirstNode = null;
+        return;
+      }
+      // Save link
+      edges.push({ a: linkFirstNode, b: id });
+      saveLink(linkFirstNode, id);
+      // Update link counts
+      const na = nodes.find(n=>n.id===linkFirstNode);
+      const nb = nodes.find(n=>n.id===id);
+      if (na) { na.linkCount++; na.radius = 6+Math.min(na.linkCount*2,14); }
+      if (nb) { nb.linkCount++; nb.radius = 6+Math.min(nb.linkCount*2,14); }
+      showToastMsg('✓ Əlaqə quruldu');
+      linkFirstNode = null;
+      toggleLinkMode();
+      updateStats();
+    }
+  }
+
+  function saveLink(a, b) {
+    // localStorage
+    try {
+      const d = JSON.parse(localStorage.getItem('bilikbazasi')||'null');
+      if (d) {
+        const exists = d.links.some(l=>(l.a===a&&l.b===b)||(l.a===b&&l.b===a));
+        if (!exists) { d.links.push({a,b}); localStorage.setItem('bilikbazasi',JSON.stringify(d)); }
+      }
+    } catch(e){}
+    // Firebase
+    if (window.FS_saveLink) window.FS_saveLink(a,b).catch(console.error);
+  }
+
+  function removeLink(a, b) {
+    edges = edges.filter(e=>!((e.a===a&&e.b===b)||(e.a===b&&e.b===a)));
+    try {
+      const d = JSON.parse(localStorage.getItem('bilikbazasi')||'null');
+      if (d) {
+        d.links = d.links.filter(l=>!((l.a===a&&l.b===b)||(l.a===b&&l.b===a)));
+        localStorage.setItem('bilikbazasi',JSON.stringify(d));
+      }
+    } catch(e){}
+    if (window.FS_deleteLink) window.FS_deleteLink(a,b).catch(console.error);
+    const na=nodes.find(n=>n.id===a), nb=nodes.find(n=>n.id===b);
+    if(na){na.linkCount=Math.max(0,na.linkCount-1);na.radius=6+Math.min(na.linkCount*2,14);}
+    if(nb){nb.linkCount=Math.max(0,nb.linkCount-1);nb.radius=6+Math.min(nb.linkCount*2,14);}
+  }
+
+  // ── Context menu ──────────────────────────────────────────
+  function showCtxMenu(x, y) {
+    const m = document.getElementById('ctx-menu');
+    m.style.left = Math.min(x, window.innerWidth-190) + 'px';
+    m.style.top  = Math.min(y, window.innerHeight-200) + 'px';
+    m.classList.add('show');
+  }
+  function hideCtxMenu() { document.getElementById('ctx-menu').classList.remove('show'); }
+
+  function ctxOpen()      { if(ctxNodeId) goToNote(ctxNodeId); hideCtxMenu(); }
+  function ctxEdit()      { if(ctxNodeId) editNote(ctxNodeId); hideCtxMenu(); }
+  function ctxStartLink() { if(!linkModeActive) toggleLinkMode(); if(ctxNodeId){linkFirstNode=ctxNodeId;showToastMsg('İkinci qeydi seçin');} hideCtxMenu(); }
+  function ctxFocus()     { if(ctxNodeId){const n=nodes.find(x=>x.id===ctxNodeId);if(n)focusNode(n);selectNode(ctxNodeId);} hideCtxMenu(); }
+  function ctxHide()      { if(ctxNodeId){hiddenNodes.add(ctxNodeId);const n=nodes.find(x=>x.id===ctxNodeId);if(n)n.hidden=true;updateStats();} hideCtxMenu(); }
+  function ctxUnlink()    { unlinkAll(ctxNodeId); hideCtxMenu(); }
+
+  // ── Actions ───────────────────────────────────────────────
+  function unlinkAll(id) {
+    const nid = id || selectedId;
+    if (!nid) return;
+    const toRemove = edges.filter(e=>e.a===nid||e.b===nid);
+    toRemove.forEach(e => removeLink(e.a, e.b));
+    updateStats();
+    if (selectedId) renderPanelTab();
+    showToastMsg('Bütün bağlar silindi');
+  }
+
+  function goToNote(id) {
+    const nid = id || selectedId;
+    if (!nid) return;
+    closeGraph(nid);
+  }
+
+  function editNote(id) {
+    const nid = id || selectedId;
+    if (!nid) return;
+    closeGraph(nid, 'edit');
+  }
+
+  function closeGraph(noteId, mode) {
+    // Signal to main app
+    window.dispatchEvent(new CustomEvent('og:close', {
+      detail: { noteId: noteId || null, mode: mode || 'view' }
+    }));
+  }
+
+  // ── View controls ─────────────────────────────────────────
+  function fitView() {
+    const vis = nodes.filter(n=>!n.hidden);
+    if (!vis.length) return;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    vis.forEach(n=>{minX=Math.min(minX,n.x-n.radius);minY=Math.min(minY,n.y-n.radius);maxX=Math.max(maxX,n.x+n.radius);maxY=Math.max(maxY,n.y+n.radius);});
+    const pw=maxX-minX||1, ph=maxY-minY||1;
+    const pad = 80;
+    const nz = Math.min((canvas.width-pad*2)/pw, (canvas.height-pad*2)/ph, 2);
+    cam.z = nz;
+    cam.x = canvas.width/2  - (minX+pw/2)*nz;
+    cam.y = canvas.height/2 - (minY+ph/2)*nz;
+    updateZoomLabel();
+  }
+
+  function zoom(delta) {
+    if (delta === 0) { fitView(); return; }
+    const nz = Math.max(0.1, Math.min(4, cam.z + delta));
+    const mx=canvas.width/2, my=canvas.height/2;
+    cam.x = mx - (mx-cam.x)*(nz/cam.z);
+    cam.y = my - (my-cam.y)*(nz/cam.z);
+    cam.z = nz;
+    updateZoomLabel();
+  }
+
+  function updateZoomLabel() {
+    document.getElementById('zoom-label').textContent = Math.round(cam.z*100)+'%';
+  }
+
+  function resetView() {
+    hiddenNodes.clear();
+    nodes.forEach(n=>n.hidden=false);
+    physTick = 0;
+    physicsActive = true;
+    loadData();
+  }
+
+  function autoLayout() {
+    physTick = 0;
+    physicsActive = true;
+    // Scatter nodes to reset
+    nodes.forEach(n=>{
+      n.x += (Math.random()-0.5)*200;
+      n.y += (Math.random()-0.5)*200;
+      n.vx = (Math.random()-0.5)*5;
+      n.vy = (Math.random()-0.5)*5;
+    });
+    setTimeout(fitView, 2000);
+  }
+
+  // ── Filter panel ──────────────────────────────────────────
+  function buildFilterPanel() {
+    const cont = document.getElementById('filter-cats');
+    let html = '';
+    filterCats.forEach((v, id) => {
+      html += `<div class="filter-item active" id="fc-${id}" onclick="OG.toggleCatFilter(${id})">
+        <div class="filter-dot" style="background:${v.color}"></div>
+        <span>${escH(v.name)}</span>
+        <div class="filter-checkbox"></div>
+      </div>`;
+    });
+    cont.innerHTML = html || '<div style="color:var(--text3);font-size:12px">Kateqoriya yoxdur</div>';
+  }
+
+  function toggleCatFilter(catId) {
+    const fc = filterCats.get(catId);
+    if (!fc) return;
+    fc.visible = !fc.visible;
+    nodes.forEach(n => {
+      if (n.catId === catId) n.hidden = !fc.visible;
+    });
+    document.getElementById('fc-'+catId)?.classList.toggle('active', fc.visible);
+    updateStats();
+  }
+
+  function toggleFilter() {
+    document.getElementById('filter-panel').classList.toggle('open');
+  }
+
+  // ── Stats ─────────────────────────────────────────────────
+  function updateStats() {
+    const vis = nodes.filter(n=>!n.hidden).length;
+    const ed = edges.filter(e=>!nodes.find(n=>n.id===e.a)?.hidden && !nodes.find(n=>n.id===e.b)?.hidden).length;
+    document.getElementById('stats-bar').textContent = `${vis} qeyd · ${ed} əlaqə`;
+  }
+
+  // ── Tooltip ───────────────────────────────────────────────
+  function showTooltip(n, mx, my) {
+    const tt = document.getElementById('node-tooltip');
+    document.getElementById('tt-title').textContent = n.label;
+    document.getElementById('tt-cat').textContent = n.catName;
+    document.getElementById('tt-links').textContent = n.linkCount ? `${n.linkCount} əlaqə` : '';
+    tt.style.display = 'block';
+    tt.style.left = Math.min(mx+14, window.innerWidth-220) + 'px';
+    tt.style.top  = Math.min(my-10, window.innerHeight-80) + 'px';
+  }
+  function hideTooltip() {
+    document.getElementById('node-tooltip').style.display = 'none';
+  }
+
+  // ── Toast ────────────────────────────────────────────────
+  let _tt = null;
+  function showToastMsg(msg) {
+    let t = document.getElementById('og-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'og-toast';
+      t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:8px 18px;border-radius:8px;font-size:13px;z-index:500;pointer-events:none;transition:opacity .3s';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(_tt);
+    _tt = setTimeout(() => t.style.opacity = '0', 2000);
+  }
+
+  // ── Search ────────────────────────────────────────────────
+  function onSearch(e) {
+    const q = e.target.value.trim().toLowerCase();
+    const dd = document.getElementById('search-dropdown');
+    if (!q) { dd.classList.remove('show'); return; }
+    const res = nodes.filter(n=>!n.hidden && n.label.toLowerCase().includes(q)).slice(0,8);
+    if (!res.length) { dd.innerHTML='<div class="sd-item" style="color:var(--text3)">Nəticə yoxdur</div>'; }
+    else {
+      dd.innerHTML = res.map(n=>`
+        <div class="sd-item" onclick="OG.selectNode(${n.id})">
+          <div class="sd-item-title">${escH(n.label)}</div>
+          <div class="sd-item-cat">${escH(n.catName)} · ${n.linkCount} əlaqə</div>
+        </div>`).join('');
+    }
+    dd.classList.add('show');
+  }
+
+  // ── Utils ─────────────────────────────────────────────────
+  function escH(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Public API ────────────────────────────────────────────
+  return {
+    init, selectNode, deselectNode, closePanel,
+    switchTab, toggleLinkMode, toggleFilter, toggleCatFilter,
+    zoom, resetView, autoLayout, fitView,
+    closeGraph: () => closeGraph(),
+    goToNote: () => goToNote(),
+    editNote: () => editNote(),
+    unlinkAll: () => unlinkAll(),
+    ctxOpen, ctxEdit, ctxStartLink, ctxFocus, ctxHide, ctxUnlink
+  };
+})();
+
+// Boot
+document.addEventListener('DOMContentLoaded', () => OG.init());
+</script>
+</body>
+</html>
