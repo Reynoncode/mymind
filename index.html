@@ -2,11 +2,13 @@
 <html lang="az">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Bilik Bazası</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
-<!-- Quill Snow Theme -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -18,20 +20,28 @@
     <span></span><span></span><span></span>
   </button>
   <div class="logo"><i class="ti ti-bolt"></i> Bilik Bazası</div>
-  <div id="search-wrap">
-    <i class="ti ti-search"></i>
-    <input type="text" id="search-input" placeholder="Axtar..." oninput="handleSearch(this.value)">
-    <div id="search-results"></div>
-  </div>
   <div id="header-actions">
+    <button class="hdr-btn" id="search-toggle-btn" onclick="toggleMobileSearch()" title="Axtar">
+      <i class="ti ti-search"></i>
+    </button>
     <button class="hdr-btn" onclick="openEditor(null)" title="Yeni qeyd">
       <i class="ti ti-plus"></i>
     </button>
-    <button class="hdr-btn" onclick="showGraphPanel()" title="Xəritə">
+    <button class="hdr-btn" onclick="openObsidianView()" title="Xəritə">
       <i class="ti ti-topology-star"></i>
     </button>
   </div>
 </header>
+
+<!-- MOBILE SEARCH BAR (hidden by default) -->
+<div id="mobile-search-bar">
+  <div id="search-wrap">
+    <i class="ti ti-search"></i>
+    <input type="text" id="search-input" placeholder="Axtar..." oninput="handleSearch(this.value)" autocomplete="off">
+    <button id="search-close-btn" onclick="toggleMobileSearch()"><i class="ti ti-x"></i></button>
+    <div id="search-results"></div>
+  </div>
+</div>
 
 <!-- OVERLAY -->
 <div id="overlay" onclick="closeSidebar()"></div>
@@ -55,7 +65,7 @@
     <div id="welcome">
       <div class="welcome-icon"><i class="ti ti-bolt"></i></div>
       <div class="welcome-title">Bilik Bazana Xoş Gəldin</div>
-      <div class="welcome-sub">Sol menyudan kateqoriya seç və ya yeni qeyd əlavə et. Hər şey burada saxlanacaq.</div>
+      <div class="welcome-sub">Sol menyudan kateqoriya seç və ya yeni qeyd əlavə et.</div>
       <div class="welcome-stats">
         <div class="stat-box">
           <div class="stat-num" id="stat-notes">0</div>
@@ -70,6 +80,9 @@
           <div class="stat-label">Fayl</div>
         </div>
       </div>
+      <button class="btn btn-primary welcome-new-btn" onclick="openEditor(null)" style="margin-top:20px">
+        <i class="ti ti-plus"></i> Yeni Qeyd
+      </button>
     </div>
 
     <!-- CATEGORY VIEW -->
@@ -80,7 +93,7 @@
           <div style="font-size:12px;color:#888;margin-top:3px" id="cv-subtitle"></div>
         </div>
         <button class="btn btn-primary" onclick="openEditor(null)">
-          <i class="ti ti-plus"></i> Yeni Qeyd
+          <i class="ti ti-plus"></i> Yeni
         </button>
       </div>
       <div class="note-cards" id="note-cards"></div>
@@ -89,21 +102,24 @@
     <!-- NOTE VIEW -->
     <div id="note-view">
       <div class="note-view-header">
-        <div>
+        <div class="note-view-top-bar">
+          <button class="btn btn-ghost btn-back" onclick="goBack()">
+            <i class="ti ti-arrow-left"></i>
+          </button>
           <div class="note-view-title" id="nv-title"></div>
-          <div class="note-view-meta" id="nv-meta"></div>
+          <div class="note-view-actions">
+            <button class="btn btn-ghost btn-icon-only" onclick="openEditor(currentNoteId)" title="Redaktə">
+              <i class="ti ti-edit"></i>
+            </button>
+            <button class="btn btn-ghost btn-icon-only" onclick="openLinkModal(currentNoteId)" title="Əlaqə">
+              <i class="ti ti-link"></i>
+            </button>
+            <button class="btn btn-danger btn-icon-only" onclick="deleteNote(currentNoteId)" title="Sil">
+              <i class="ti ti-trash"></i>
+            </button>
+          </div>
         </div>
-        <div class="note-view-actions">
-          <button class="btn btn-ghost" onclick="openEditor(currentNoteId)">
-            <i class="ti ti-edit"></i> Redaktə
-          </button>
-          <button class="btn btn-ghost" onclick="openLinkModal(currentNoteId)" title="Əlaqə qur">
-            <i class="ti ti-link"></i>
-          </button>
-          <button class="btn btn-danger" onclick="deleteNote(currentNoteId)">
-            <i class="ti ti-trash"></i>
-          </button>
-        </div>
+        <div class="note-view-meta" id="nv-meta"></div>
       </div>
       <div class="note-body ql-editor" id="nv-body"></div>
       <div class="note-files" id="nv-files" style="display:none">
@@ -115,64 +131,49 @@
     <!-- EDITOR -->
     <div id="editor-view">
       <div class="editor-header">
-        <button class="btn btn-ghost" onclick="cancelEditor()">
+        <button class="btn btn-ghost btn-icon-only" onclick="cancelEditor()">
           <i class="ti ti-arrow-left"></i>
         </button>
         <input type="text" id="editor-title-input" placeholder="Başlıq...">
+      </div>
+      <div class="editor-selects">
         <select id="editor-cat-select" class="editor-cat-select"></select>
         <select id="editor-subcat-select" class="editor-cat-select"></select>
       </div>
 
-      <!-- QUILL EDITOR with full toolbar -->
+      <!-- QUILL EDITOR -->
       <div id="editor-container">
         <div id="quill-toolbar">
           <span class="ql-formats">
-            <select class="ql-font"></select>
-            <select class="ql-size">
-              <option value="small">Kiçik</option>
-              <option selected>Normal</option>
-              <option value="large">Böyük</option>
-              <option value="huge">Çox Böyük</option>
-            </select>
-          </span>
-          <span class="ql-formats">
             <select class="ql-header">
-              <option value="1">Başlıq 1</option>
-              <option value="2">Başlıq 2</option>
-              <option value="3">Başlıq 3</option>
+              <option value="1">H1</option>
+              <option value="2">H2</option>
+              <option value="3">H3</option>
               <option selected></option>
             </select>
           </span>
           <span class="ql-formats">
-            <button class="ql-bold" title="Qalın (Ctrl+B)"></button>
-            <button class="ql-italic" title="Kursiv (Ctrl+I)"></button>
-            <button class="ql-underline" title="Altçizili (Ctrl+U)"></button>
-            <button class="ql-strike" title="Üstüçizili"></button>
+            <button class="ql-bold"></button>
+            <button class="ql-italic"></button>
+            <button class="ql-underline"></button>
+            <button class="ql-strike"></button>
           </span>
           <span class="ql-formats">
-            <select class="ql-color" title="Mətn rəngi"></select>
-            <select class="ql-background" title="Arxa plan rəngi"></select>
+            <button class="ql-list" value="ordered"></button>
+            <button class="ql-list" value="bullet"></button>
           </span>
           <span class="ql-formats">
-            <button class="ql-list" value="ordered" title="Nömrəli siyahı"></button>
-            <button class="ql-list" value="bullet" title="Nöqtəli siyahı"></button>
-            <button class="ql-indent" value="-1" title="Girinti azalt"></button>
-            <button class="ql-indent" value="+1" title="Girinti artır"></button>
+            <button class="ql-blockquote"></button>
+            <button class="ql-code-block"></button>
           </span>
           <span class="ql-formats">
-            <select class="ql-align" title="Hizalama"></select>
+            <button class="ql-link"></button>
+            <button class="ql-image"></button>
           </span>
           <span class="ql-formats">
-            <button class="ql-blockquote" title="Sitat"></button>
-            <button class="ql-code-block" title="Kod bloku"></button>
-          </span>
-          <span class="ql-formats">
-            <button class="ql-link" title="Keçid"></button>
-            <button class="ql-image" title="Şəkil daxil et"></button>
-            <button class="ql-video" title="Video daxil et"></button>
-          </span>
-          <span class="ql-formats">
-            <button class="ql-clean" title="Formatı sil"></button>
+            <select class="ql-color"></select>
+            <select class="ql-align"></select>
+            <button class="ql-clean"></button>
           </span>
         </div>
         <div id="quill-editor"></div>
@@ -182,8 +183,8 @@
       <div id="file-upload-area">
         <input type="file" id="file-input" multiple accept="*/*" onchange="handleFileSelect(this.files)">
         <i class="ti ti-cloud-upload"></i>
-        <p>Faylları bura sürükle və ya <strong>seç</strong></p>
-        <span>📄 PDF &nbsp;·&nbsp; 🖼️ Şəkil &nbsp;·&nbsp; 🎬 Video &nbsp;·&nbsp; 🎵 Audio &nbsp;·&nbsp; 📝 Word &nbsp;·&nbsp; 📊 Excel &nbsp;·&nbsp; 🗜️ ZIP — hamısı dəstəklənir</span>
+        <p>Fayl seç və ya sürükle</p>
+        <span>📄 PDF · 🖼️ Şəkil · 🎬 Video · 🎵 Audio · 📝 Word · 📊 Excel</span>
       </div>
       <div id="staged-files"></div>
 
@@ -195,25 +196,24 @@
       </div>
     </div>
 
-  </div>
+    <!-- OBSIDIAN GRAPH VIEW (inline iframe) -->
+    <div id="obsidian-view" style="display:none">
+      <div class="obsidian-header">
+        <button class="btn btn-ghost btn-icon-only" onclick="closeObsidianView()">
+          <i class="ti ti-arrow-left"></i>
+        </button>
+        <span class="obsidian-header-title"><i class="ti ti-topology-star"></i> Əlaqə Xəritəsi</span>
+      </div>
+      <iframe id="obsidian-iframe" src="obsidian.html" frameborder="0"></iframe>
+    </div>
 
-  <!-- DESKTOP GRAPH PANEL -->
-  <div id="graph-panel">
-    <div class="graph-title">
-      <span>Əlaqə Xəritəsi</span>
-      <button class="hdr-btn" onclick="resetGraphView()" title="Sıfırla" style="width:22px;height:22px;font-size:10px">
-        <i class="ti ti-refresh"></i>
-      </button>
-    </div>
-    <div class="graph-hint">Qeydlər arasında əlaqə qurmaq üçün <i class="ti ti-link"></i> istifadə edin. Sürükləmək olar.</div>
-    <canvas id="graph-canvas" width="300" height="420"></canvas>
-    <div class="graph-legend">
-      <div class="legend-item"><div class="legend-dot" style="background:#111"></div>Qeyd</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Seçilmiş</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Əlaqəli</div>
-    </div>
   </div>
 </div>
+
+<!-- MOBILE FAB (floating action button) -->
+<button id="fab-btn" onclick="openEditor(null)" title="Yeni qeyd">
+  <i class="ti ti-plus"></i>
+</button>
 
 <!-- FILE MODAL -->
 <div id="file-modal">

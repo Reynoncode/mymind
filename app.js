@@ -131,7 +131,6 @@ window.addEventListener('DOMContentLoaded', () => {
   initQuill();
   renderSidebar();
   updateStats();
-  initGraphCanvas('graph-canvas');
 
   document.addEventListener('click', e => {
     if (!e.target.closest('#search-wrap')) {
@@ -244,6 +243,7 @@ function renderSidebar() {
 function selectCategory(catId) {
   currentCatId = catId; currentSubcatId = null;
   renderSidebar(); showCatView(catId, null);
+  if (window.innerWidth < 768) closeSidebar();
 }
 function selectSubcat(catId, subcatId) {
   currentCatId = catId; currentSubcatId = subcatId;
@@ -261,6 +261,9 @@ function showView(name) {
   const map = { welcome:'welcome', cat:'cat-view', note:'note-view', editor:'editor-view' };
   document.getElementById(map[name] || name).style.display = 'block';
   currentView = name;
+  // update body class for FAB visibility
+  document.body.classList.toggle('in-editor', name === 'editor');
+  document.body.classList.toggle('in-note', name === 'note');
 }
 
 function updateStats() {
@@ -302,7 +305,7 @@ function showCatView(catId, subcatId) {
       </div>`).join('');
   }
   showView('cat');
-  updateGraphData(); renderGraph('graph-canvas');
+  
 }
 
 function showNote(noteId) {
@@ -340,7 +343,7 @@ function showNote(noteId) {
   } else { nf.style.display = 'none'; }
 
   showView('note');
-  updateGraphData(); renderGraph('graph-canvas');
+  
 }
 
 // ============================================================
@@ -639,7 +642,7 @@ function confirmLink(){
   if(window.FS_saveLink)window.FS_saveLink(linkingNoteId,targetId).catch(console.error);
   closeLinkModal();
   showToast('Əlaqə quruldu ✓','success');
-  updateGraphData(); renderGraph('graph-canvas');
+  
   if(currentNoteId)showNote(currentNoteId);
 }
 
@@ -789,3 +792,68 @@ function showToast(msg,type='success'){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
 }
+
+// ============================================================
+// MOBILE EXTRAS
+// ============================================================
+
+// Mobile search toggle
+function toggleMobileSearch() {
+  const bar = document.getElementById('mobile-search-bar');
+  const inp = document.getElementById('search-input');
+  bar.classList.toggle('show');
+  if (bar.classList.contains('show')) {
+    setTimeout(() => inp.focus(), 80);
+  } else {
+    inp.value = '';
+    document.getElementById('search-results').classList.remove('show');
+  }
+}
+
+// Obsidian graph view (iframe-based)
+function openObsidianView() {
+  const ov = document.getElementById('obsidian-view');
+  ov.style.display = 'flex';
+  // sync localStorage data to iframe when it loads
+  const iframe = document.getElementById('obsidian-iframe');
+  iframe.onload = () => {
+    try {
+      const data = localStorage.getItem('bilikbazasi');
+      if (data && iframe.contentWindow) {
+        iframe.contentWindow.localStorage.setItem('bilikbazasi', data);
+        if (iframe.contentWindow.loadGraph) iframe.contentWindow.loadGraph();
+      }
+    } catch(e) {}
+  };
+  // reload to ensure fresh data
+  iframe.src = iframe.src;
+}
+function closeObsidianView() {
+  document.getElementById('obsidian-view').style.display = 'none';
+}
+
+// Back navigation — go back to category view or welcome
+function goBack() {
+  if (currentCatId) showCatView(currentCatId, currentSubcatId);
+  else showView('welcome');
+}
+
+// Close search on outside click (mobile)
+document.addEventListener('click', e => {
+  const bar = document.getElementById('mobile-search-bar');
+  if (bar && bar.classList.contains('show')) {
+    if (!e.target.closest('#mobile-search-bar') && !e.target.closest('#search-toggle-btn')) {
+      bar.classList.remove('show');
+      document.getElementById('search-input').value = '';
+      document.getElementById('search-results').classList.remove('show');
+    }
+  }
+});
+
+// Close obsidian view with back button (Android)
+window.addEventListener('popstate', () => {
+  const ov = document.getElementById('obsidian-view');
+  if (ov && ov.style.display !== 'none') {
+    closeObsidianView();
+  }
+});

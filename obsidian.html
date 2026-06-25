@@ -2,6 +2,7 @@
 <html lang="az">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bilik Xəritəsi</title>
 <style>
 /* ============================================================
@@ -1461,7 +1462,8 @@ const OG = (() => {
   };
 })();
 
-// Boot
+// Boot — expose loadGraph so parent frame can trigger refresh
+window.loadGraph = function() { try { OG.init && OG.init(); } catch(e){} };
 document.addEventListener('DOMContentLoaded', () => OG.init());
 </script>
 </body>
