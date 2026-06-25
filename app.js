@@ -259,7 +259,7 @@ function showView(name) {
     document.getElementById(id).style.display = 'none';
   });
   const map = { welcome:'welcome', cat:'cat-view', note:'note-view', editor:'editor-view' };
-  document.getElementById(map[name] || name).style.display = '';
+  document.getElementById(map[name] || name).style.display = 'block';
   currentView = name;
 }
 
