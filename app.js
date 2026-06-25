@@ -353,6 +353,7 @@ function openEditor(noteId) {
     setTimeout(() => openEditor(noteId), 150);
     return;
   }
+  editingNoteId = noteId;
   stagedFiles = [];
   const d = DB.get();
 
