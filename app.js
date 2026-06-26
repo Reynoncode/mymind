@@ -1,42 +1,87 @@
 // ============================================================
-// DATA LAYER — localStorage (Firebase override üçün hazır)
+// DATA LAYER — Firestore əsas, localStorage backup
 // ============================================================
 const DB = {
+  _cache: null,
+
   _read() {
     try { return JSON.parse(localStorage.getItem('bilikbazasi') || 'null'); } catch { return null; }
   },
   _write(data) {
-    localStorage.setItem('bilikbazasi', JSON.stringify(data));
+    try { localStorage.setItem('bilikbazasi', JSON.stringify(data)); } catch(e) { console.warn('localStorage yazma xətası:', e); }
   },
   _init() {
+    if (this._cache) return this._cache;
     const d = this._read();
-    if (d) return d;
+    if (d) { this._cache = d; return d; }
     const fresh = { categories: [], notes: [], links: [], nextId: 1 };
     this._write(fresh);
+    this._cache = fresh;
     return fresh;
   },
   get() { return this._init(); },
-  save(data) { this._write(data); },
-  genId() {
-    const d = this.get(); const id = d.nextId; d.nextId++; this.save(d); return id;
+  save(data) { this._cache = data; this._write(data); },
+
+  // Firestore-dan yüklə və lokal cache-i yenilə
+  async loadFromFirestore() {
+    if (!window.FS_loadAll) return;
+    try {
+      const { categories, notes, links } = await window.FS_loadAll();
+      const local = this._init();
+
+      // Mövcud nextId-ni qoru, amma Firestore məlumatlarını istifadə et
+      const allIds = [
+        ...categories.map(c => c.id),
+        ...notes.map(n => n.id),
+        ...(categories.flatMap(c => (c.subcats||[]).map(s => s.id)))
+      ];
+      const maxId = allIds.length ? Math.max(...allIds) : 0;
+      const nextId = Math.max(local.nextId || 1, maxId + 1);
+
+      const merged = { categories, notes, links, nextId };
+      this.save(merged);
+      return merged;
+    } catch(e) {
+      console.error('Firestore yükləmə xətası:', e);
+    }
   },
+
+  genId() {
+    const d = this.get();
+    const id = d.nextId;
+    d.nextId++;
+    this.save(d);
+    // nextId-ni Firestore-da da saxla (meta doc kimi)
+    if (window.FS_saveMeta) window.FS_saveMeta({ nextId: d.nextId }).catch(console.error);
+    return id;
+  },
+
   addCategory(name, icon = '📁') {
     const d = this.get();
     const cat = { id: this.genId(), name, icon, subcats: [] };
-    d.categories.push(cat); this.save(d); return cat;
+    d.categories.push(cat);
+    this.save(d);
+    if (window.FS_saveCat) window.FS_saveCat(cat).catch(console.error);
+    return cat;
   },
   addSubcat(catId, name) {
     const d = this.get();
     const cat = d.categories.find(c => c.id === catId);
     if (!cat) return null;
     const sub = { id: this.genId(), name };
-    cat.subcats.push(sub); this.save(d); return sub;
+    cat.subcats.push(sub);
+    this.save(d);
+    if (window.FS_saveCat) window.FS_saveCat(cat).catch(console.error);
+    return sub;
   },
   deleteCategory(catId) {
     const d = this.get();
     d.categories = d.categories.filter(c => c.id !== catId);
     d.notes = d.notes.filter(n => n.catId !== catId);
     this.save(d);
+    if (window.FS_deleteCat) window.FS_deleteCat(catId).catch(console.error);
+    // Bu kateqoriyanın qeydlərini də Firestore-dan sil
+    if (window.FS_deleteNotesByCat) window.FS_deleteNotesByCat(catId).catch(console.error);
   },
   deleteSubcat(catId, subcatId) {
     const d = this.get();
@@ -44,12 +89,14 @@ const DB = {
     if (cat) cat.subcats = cat.subcats.filter(s => s.id !== subcatId);
     d.notes = d.notes.filter(n => !(n.catId === catId && n.subcatId === subcatId));
     this.save(d);
+    if (window.FS_saveCat) window.FS_saveCat(cat).catch(console.error);
   },
   saveNote(note) {
     const d = this.get();
     const idx = d.notes.findIndex(n => n.id === note.id);
     if (idx >= 0) d.notes[idx] = note; else d.notes.push(note);
-    this.save(d); return note;
+    this.save(d);
+    return note;
   },
   deleteNote(noteId) {
     const d = this.get();
@@ -83,8 +130,8 @@ const DB = {
 };
 
 // ============================================================
-// FILE STORE — base64 → localStorage
-// Böyük fayllar üçün Firebase Storage əlavə edin
+// FILE STORE — base64 → Firestore (notes içində saxlanır)
+// Böyük fayllar üçün key = noteId_timestamp_filename
 // ============================================================
 const FileStore = {
   save(noteId, file) {
@@ -92,18 +139,30 @@ const FileStore = {
       const reader = new FileReader();
       reader.onload = e => {
         const key = `file_${noteId}_${Date.now()}_${file.name}`;
-        try {
-          localStorage.setItem(key, e.target.result);
-        } catch(err) {
-          console.warn('LocalStorage dolu, fayl yaddaşda saxlanılmadı:', err);
+        const fileData = e.target.result; // base64 data URL
+        // localStorage-a da yaz (offline backup)
+        try { localStorage.setItem(key, fileData); } catch(err) {
+          console.warn('localStorage fayl yazma xətası:', err);
         }
-        res({ key, name: file.name, type: file.type, size: file.size });
+        res({ key, name: file.name, type: file.type, size: file.size, data: fileData });
       };
       reader.onerror = rej;
       reader.readAsDataURL(file);
     });
   },
-  get(key) { return localStorage.getItem(key); },
+  get(key) {
+    // Əvvəlcə localStorage-dan cəhd et
+    const local = localStorage.getItem(key);
+    if (local) return local;
+    // localStorage-da yoxdursa, DB cache-dən axtar
+    const d = DB.get();
+    for (const note of d.notes) {
+      for (const f of (note.files || [])) {
+        if (f.key === key && f.data) return f.data;
+      }
+    }
+    return null;
+  },
   delete(key) { localStorage.removeItem(key); }
 };
 
@@ -129,8 +188,43 @@ let genericModalCallback = null;
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
   initQuill();
-  renderSidebar();
-  updateStats();
+  showLoadingState(true);
+
+  // Firebase hazır olana qədər gözlə, sonra yüklə
+  waitForFirebase().then(async () => {
+    await DB.loadFromFirestore();
+    showLoadingState(false);
+    renderSidebar();
+    updateStats();
+
+    // Real-time dinləmə — başqa cihazdan dəyişiklik gələndə avtomatik yenilə
+    if (window.FS_listenNotes) {
+      window.FS_listenNotes((notes) => {
+        const d = DB.get();
+        d.notes = notes;
+        DB.save(d);
+        renderSidebar();
+        updateStats();
+        // Açıq olan qeydi yenilə
+        if (currentNoteId && currentView === 'note') showNote(currentNoteId);
+        if (currentView === 'cat') showCatView(currentCatId, currentSubcatId);
+      });
+    }
+    if (window.FS_listenCats) {
+      window.FS_listenCats((categories) => {
+        const d = DB.get();
+        d.categories = categories;
+        DB.save(d);
+        renderSidebar();
+        updateStats();
+      });
+    }
+  }).catch(() => {
+    // Firebase gəlməsə lokal data ilə davam et
+    showLoadingState(false);
+    renderSidebar();
+    updateStats();
+  });
 
   document.addEventListener('click', e => {
     if (!e.target.closest('#search-wrap')) {
@@ -146,8 +240,6 @@ window.addEventListener('DOMContentLoaded', () => {
     e.preventDefault(); fa.classList.remove('drag-over');
     handleFileSelect(e.dataTransfer.files);
   });
-
-  // "Fayl seç" düyməsinə klik — input-u trigger et
   fa.addEventListener('click', e => {
     if (e.target.tagName !== 'INPUT') {
       document.getElementById('file-input').click();
@@ -155,21 +247,49 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// Firebase module yüklənənə qədər gözlə
+function waitForFirebase(timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const check = () => {
+      if (window.FS_loadAll) return resolve();
+      if (Date.now() - start > timeout) return reject(new Error('Firebase timeout'));
+      setTimeout(check, 100);
+    };
+    check();
+  });
+}
+
+function showLoadingState(show) {
+  let el = document.getElementById('fs-loading');
+  if (show) {
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'fs-loading';
+      el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:9999;color:#fff;font-size:16px;font-family:Inter,sans-serif;flex-direction:column;gap:12px';
+      el.innerHTML = '<div style="width:32px;height:32px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite"></div><div>Yüklənir...</div>';
+      if (!document.querySelector('#spin-style')) {
+        const s = document.createElement('style');
+        s.id = 'spin-style';
+        s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(s);
+      }
+      document.body.appendChild(el);
+    }
+  } else {
+    if (el) el.remove();
+  }
+}
+
 // ============================================================
-// QUILL — Tam Word-vari editor
+// QUILL
 // ============================================================
 function initQuill() {
-  if (quillEditor) return; // artıq yaradılıbsa yenidən yaratma
-  if (typeof Quill === 'undefined') {
-    // Quill hələ yüklənməyib, 100ms sonra yenidən cəhd et
-    setTimeout(initQuill, 100);
-    return;
-  }
+  if (quillEditor) return;
+  if (typeof Quill === 'undefined') { setTimeout(initQuill, 100); return; }
   quillEditor = new Quill('#quill-editor', {
     theme: 'snow',
-    modules: {
-      toolbar: '#quill-toolbar'
-    },
+    modules: { toolbar: '#quill-toolbar' },
     placeholder: 'Məzmunu buraya yaz...',
   });
 }
@@ -261,7 +381,6 @@ function showView(name) {
   const map = { welcome:'welcome', cat:'cat-view', note:'note-view', editor:'editor-view' };
   document.getElementById(map[name] || name).style.display = 'block';
   currentView = name;
-  // update body class for FAB visibility
   document.body.classList.toggle('in-editor', name === 'editor');
   document.body.classList.toggle('in-note', name === 'note');
 }
@@ -305,7 +424,6 @@ function showCatView(catId, subcatId) {
       </div>`).join('');
   }
   showView('cat');
-  
 }
 
 function showNote(noteId) {
@@ -322,7 +440,6 @@ function showNote(noteId) {
     <span><i class="ti ti-calendar" style="margin-right:3px"></i>${fmtDate(note.createdAt)}</span>
     <span><i class="ti ti-clock" style="margin-right:3px"></i>Yeniləndi: ${fmtDate(note.updatedAt)}</span>
   `;
-  // Quill HTML-ini bilavasitə render et (ql-editor stili ilə)
   document.getElementById('nv-body').innerHTML = note.content || '<p style="color:#aaa">Məzmun yoxdur</p>';
 
   const nf = document.getElementById('nv-files');
@@ -343,19 +460,13 @@ function showNote(noteId) {
   } else { nf.style.display = 'none'; }
 
   showView('note');
-  
 }
 
 // ============================================================
 // EDITOR
 // ============================================================
 function openEditor(noteId) {
-  // Quill hələ hazır deyilsə, gözlə
-  if (!quillEditor) {
-    initQuill();
-    setTimeout(() => openEditor(noteId), 150);
-    return;
-  }
+  if (!quillEditor) { initQuill(); setTimeout(() => openEditor(noteId), 150); return; }
   editingNoteId = noteId;
   stagedFiles = [];
   const d = DB.get();
@@ -394,10 +505,8 @@ function openEditor(noteId) {
     document.getElementById('staged-files').innerHTML = '';
   }
 
-  // file input reset
   const fi = document.getElementById('file-input');
   fi.value = '';
-
   showView('editor');
   setTimeout(() => quillEditor.focus(), 100);
 }
@@ -462,7 +571,6 @@ async function saveNote() {
 function handleFileSelect(files) {
   for (const f of files) stagedFiles.push({ file: f, meta: null });
   renderStagedFiles();
-  // input sıfırla ki eyni faylı yenidən əlavə etmək olar
   document.getElementById('file-input').value = '';
 }
 
@@ -497,7 +605,7 @@ function openFile(key, name, type) {
   if (!data) {
     body.innerHTML = `<div class="file-unsupported">
       <i class="ti ti-alert-triangle"></i>
-      <p>Fayl tapılmadı.<br><small>LocalStorage limiti aşılmış ola bilər.</small></p>
+      <p>Fayl tapılmadı.<br><small>Fayl bu cihazda mövcud deyil.</small></p>
     </div>`;
     return;
   }
@@ -642,7 +750,6 @@ function confirmLink(){
   if(window.FS_saveLink)window.FS_saveLink(linkingNoteId,targetId).catch(console.error);
   closeLinkModal();
   showToast('Əlaqə quruldu ✓','success');
-  
   if(currentNoteId)showNote(currentNoteId);
 }
 
@@ -663,14 +770,18 @@ function openAddSubcatModal(catId){
 function renameCat(catId){
   const d=DB.get(), cat=d.categories.find(c=>c.id===catId);
   openGenericModal('Adını Dəyiş','Yeni ad',cat?.name||'',false,'',(name)=>{
-    cat.name=name;DB.save(d);renderSidebar();showToast('Adı dəyişdirildi ✓','success');
+    cat.name=name;DB.save(d);
+    if(window.FS_saveCat)window.FS_saveCat(cat).catch(console.error);
+    renderSidebar();showToast('Adı dəyişdirildi ✓','success');
   });
   setTimeout(()=>{document.getElementById('gm-input').value=cat?.name||'';},0);
 }
 function renameSubcat(catId,subcatId){
   const d=DB.get(), cat=d.categories.find(c=>c.id===catId), sub=cat?.subcats.find(s=>s.id===subcatId);
   openGenericModal('Adını Dəyiş','Yeni ad',sub?.name||'',false,'',(name)=>{
-    sub.name=name;DB.save(d);renderSidebar();showToast('Adı dəyişdirildi ✓','success');
+    sub.name=name;DB.save(d);
+    if(window.FS_saveCat)window.FS_saveCat(cat).catch(console.error);
+    renderSidebar();showToast('Adı dəyişdirildi ✓','success');
   });
   setTimeout(()=>{document.getElementById('gm-input').value=sub?.name||'';},0);
 }
@@ -796,8 +907,6 @@ function showToast(msg,type='success'){
 // ============================================================
 // MOBILE EXTRAS
 // ============================================================
-
-// Mobile search toggle
 function toggleMobileSearch() {
   const bar = document.getElementById('mobile-search-bar');
   const inp = document.getElementById('search-input');
@@ -810,11 +919,9 @@ function toggleMobileSearch() {
   }
 }
 
-// Obsidian graph view (iframe-based)
 function openObsidianView() {
   const ov = document.getElementById('obsidian-view');
   ov.style.display = 'flex';
-  // sync localStorage data to iframe when it loads
   const iframe = document.getElementById('obsidian-iframe');
   iframe.onload = () => {
     try {
@@ -825,20 +932,17 @@ function openObsidianView() {
       }
     } catch(e) {}
   };
-  // reload to ensure fresh data
   iframe.src = iframe.src;
 }
 function closeObsidianView() {
   document.getElementById('obsidian-view').style.display = 'none';
 }
 
-// Back navigation — go back to category view or welcome
 function goBack() {
   if (currentCatId) showCatView(currentCatId, currentSubcatId);
   else showView('welcome');
 }
 
-// Close search on outside click (mobile)
 document.addEventListener('click', e => {
   const bar = document.getElementById('mobile-search-bar');
   if (bar && bar.classList.contains('show')) {
@@ -850,7 +954,6 @@ document.addEventListener('click', e => {
   }
 });
 
-// Close obsidian view with back button (Android)
 window.addEventListener('popstate', () => {
   const ov = document.getElementById('obsidian-view');
   if (ov && ov.style.display !== 'none') {
